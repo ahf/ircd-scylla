@@ -67,22 +67,58 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
 
         let write t s =
             log t Log.Level.Debug (">> " ^ s);
-            t.output_push (Some s)
+            t.output_push (Some (s ^ "\r\n"))
 
         let connected t =
-            log t Log.Level.Info "Connected ...";
-            write t ":127.0.0.1 NOTICE * :*** Processing your connection a...";
-            write t ":127.0.0.1 NOTICE * :*** Processing your connection b...";
-            write t ":127.0.0.1 NOTICE * :*** Processing your connection c..."
+            log t Log.Level.Info "Connected ..."
 
         let disconnected t =
             log t Log.Level.Info "Disconnected ..."
 
+        let maybe_register_client t =
+            let server_name = Conf.name (Scylla.config t.scylla) in
+            let username = t.username in
+            let nickname = t.nickname in
+            match (username, nickname) with
+            | ("*", _) -> t
+            | (_, "*") -> t
+            | _        ->
+                    log t Log.Level.Info "Registered ...";
+                    write t (Printf.sprintf ":%s 001 %s :Welcome to the IRC network, %s" server_name nickname nickname);
+                    { t with registered = true }
+
         let handle_registered_message t m =
-            t
+            let command = Message.command m in
+            let server_name = Conf.name (Scylla.config t.scylla) in
+            match command with
+            | "PING" ->
+                    (match (Message.arguments m) with
+                     | d :: [] ->
+                             write t (Printf.sprintf ":%s PONG :%s" server_name d);
+                             t
+                     | _ ->
+                             t)
+            | _ ->
+                    write t (Printf.sprintf ":%s 421 %s %s :Unknown command" server_name t.nickname command);
+                    t
 
         let handle_unregistered_message t m =
-            t
+            let new_t = match (Message.command m) with
+                        | "NICK" ->
+                                (match (Message.arguments m) with
+                                | nick :: [] ->
+                                       { t with nickname = nick }
+                                | _ ->
+                                        t)
+                        | "USER" ->
+                                (match (Message.arguments m) with
+                                | user :: _ :: _ :: real :: [] ->
+                                        { t with username = "~" ^ user; realname = real }
+                                | _ ->
+                                        t)
+                        | _ ->
+                                t in
+            maybe_register_client new_t
 
         let handle_message t message =
             match t.registered with
@@ -109,30 +145,27 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
             | false ->
                     { t with cont = data }
 
-        let rec handle t =
-            let tls = t.tls in
+        let rec handle client =
+            let tls = client.tls in
             let rec write () =
-                let stream = t.output_stream in
-                Lwt_stream.get stream >>= fun m ->
-                    match m with
-                    | None -> handle t
-                    | Some message ->
-                        let s = message ^ "\r\n" in
-                        let c = Cstruct.of_string s in
-                        return (TLS.write tls c) >> write () in
+                    log client Log.Level.Error "write () ...";
+                    let stream = client.output_stream in
+                    let messages = Lwt_stream.get_available stream in
+                    let s = String.concat "" messages in
+                    let c = Cstruct.of_string s in
+                    TLS.write tls c in
 
-            let read () =
-                lwt res = TLS.read tls in
-                match res with
-                | `Ok buffer ->
-                        let message = t.cont ^ (Cstruct.to_string buffer) in
-                        let new_t = handle_data t message in
-                        handle new_t
-                | `Error s ->
-                        log t Log.Level.Error "Error ...";
-                        return (`Error s)
-                | `Eof ->
-                        disconnected t;
-                        return `Eof in
-            pick [read (); write ()]
+            log client Log.Level.Error "read () ...";
+            lwt res = TLS.read tls in
+            match res with
+            | `Ok buffer ->
+                    let message = client.cont ^ (Cstruct.to_string buffer) in
+                    let new_client = handle_data client message in
+                    write () >> handle new_client
+            | `Error s ->
+                    disconnected client;
+                    return (`Error s)
+            | `Eof ->
+                    disconnected client;
+                    return `Eof
     end

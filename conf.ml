@@ -5,10 +5,6 @@
  *)
 
 open Sexplib.Std
-open Lwt
-
-open V1
-open V1_LWT
 
 type t =
     {

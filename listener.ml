@@ -16,25 +16,13 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
         module Scylla = Scylla.Make (C) (S) (KV)
         module Client = Client.Make (C) (S) (KV)
 
-        type ('a, 'e, 'c) m = ([< `Ok of 'a | `Error of 'e | `Eof ] as 'c) Lwt.t
-
-        let (>>==) (a : ('a, 'e, _) m) (f : 'a -> ('b, 'e, _) m) : ('b, 'e, _) m =
-          a >>= function
-            | `Ok x                -> f x
-            | `Error _ | `Eof as e -> return e
-
         let accept scylla conf flow =
-            TLS.server_of_flow conf flow >>==
-                (fun tls ->
+            TLS.server_of_flow conf flow >>= function
+                | `Error _ | `Eof -> fail (Failure "tls init")
+                | `Ok tls ->
                     let ip, port = S.TCPV4.get_dest flow in
                     let client = Client.create scylla ip port tls in
-                    Client.connected client;
-                    Client.handle client)
-                >>= function
-                    | `Error _ | `Eof ->
-                            fail (Failure "tls init")
-                    | `Ok _ ->
-                            assert false
+                    Client.handle client
 
         let listen scylla =
             let stack = Scylla.stack scylla in

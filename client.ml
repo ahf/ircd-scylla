@@ -14,6 +14,8 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
         module TLS    = Tls_mirage.Make (S.TCPV4)
         module Scylla = Scylla.Make (C) (S) (KV)
 
+        type write_command = Stop | Message of string
+
         type t =
             {
                 scylla     : Scylla.t;
@@ -33,12 +35,21 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
 
                 registered : bool;
 
-                output_push   : (string option -> unit);
-                output_stream : string Lwt_stream.t;
+                mailbox    : write_command Lwt_mvar.t;
             }
 
+        let log t log_level s =
+            let message = Printf.sprintf "Client %s!%s@%s:%d: %s" t.nickname t.username t.hostname t.port s in
+            Scylla.log t.scylla log_level message
+
+        let connected t =
+            log t Log.Level.Info "Connected ..."
+
+        let disconnected t =
+            log t Log.Level.Info "Disconnected ..."
+
         let create scylla ip port tls =
-            let output_stream, output_push = Lwt_stream.create () in
+            let mailbox = Lwt_mvar.create_empty () in
             {
                 scylla = scylla;
 
@@ -57,23 +68,18 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
 
                 registered = false;
 
-                output_push = output_push;
-                output_stream = output_stream;
+                mailbox = mailbox;
             }
 
-        let log t log_level s =
-            let message = Printf.sprintf "Client %s!%s@%s:%d: %s" t.nickname t.username t.hostname t.port s in
-            Scylla.log t.scylla log_level message
+        let write_command t cmd =
+            let _ = Lwt_mvar.put t.mailbox cmd in
+            ()
 
-        let write t s =
-            log t Log.Level.Debug (">> " ^ s);
-            t.output_push (Some (s ^ "\r\n"))
+        let write t m =
+            write_command t (Message m)
 
-        let connected t =
-            log t Log.Level.Info "Connected ..."
-
-        let disconnected t =
-            log t Log.Level.Info "Disconnected ..."
+        let close_writer t =
+            write_command t Stop
 
         let maybe_register_client t =
             let server_name = Conf.name (Scylla.config t.scylla) in
@@ -145,27 +151,34 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
             | false ->
                     { t with cont = data }
 
-        let rec handle client =
-            let tls = client.tls in
-            let rec write () =
-                    log client Log.Level.Error "write () ...";
-                    let stream = client.output_stream in
-                    let messages = Lwt_stream.get_available stream in
-                    let s = String.concat "" messages in
-                    let c = Cstruct.of_string s in
-                    TLS.write tls c in
+        let rec handle_write client =
+            Lwt_mvar.take client.mailbox >>= function
+                | Message message ->
+                    (lwt res = TLS.write client.tls (Cstruct.of_string (message ^ "\r\n")) in
+                    match res with
+                    | `Error e -> log client Log.Level.Error ("Write error: " ^ (TLS.error_message e));
+                                  return_unit
+                    | `Eof     -> return_unit
+                    | `Ok _    -> handle_write client)
+                | Stop -> return_unit
 
-            log client Log.Level.Error "read () ...";
-            lwt res = TLS.read tls in
+        let rec handle_read client =
+            lwt res = TLS.read client.tls in
             match res with
+            | `Error e   -> log client Log.Level.Error ("Read error: " ^ (TLS.error_message e));
+                            close_writer client;
+                            return_unit
+            | `Eof       -> close_writer client;
+                            return_unit
             | `Ok buffer ->
                     let message = client.cont ^ (Cstruct.to_string buffer) in
                     let new_client = handle_data client message in
-                    write () >> handle new_client
-            | `Error s ->
-                    disconnected client;
-                    return (`Error s)
-            | `Eof ->
-                    disconnected client;
-                    return `Eof
+                    handle_read new_client
+
+        let handle client =
+            connected client;
+            join [
+                    handle_read client;
+                    handle_write client
+                 ] >|= fun () -> disconnected client
     end

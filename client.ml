@@ -155,16 +155,17 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
                     { t with cont = data }
 
         let rec handle_write client =
-            Lwt_mvar.take client.mailbox >>= function
-                | Message message ->
-                    log client Log.Level.Debug (">> " ^ message);
-                    (lwt res = TLS.write client.tls (Cstruct.of_string (message ^ "\r\n")) in
-                    match res with
-                    | `Error e -> log client Log.Level.Error ("Write error: " ^ (TLS.error_message e));
-                                  return_unit
-                    | `Eof     -> return_unit
-                    | `Ok _    -> handle_write client)
-                | Stop -> return_unit
+            lwt command = Lwt_mvar.take client.mailbox in
+            match command with
+            | Message message ->
+                log client Log.Level.Debug (">> " ^ message);
+                (lwt res = TLS.write client.tls (Cstruct.of_string (message ^ "\r\n")) in
+                match res with
+                | `Error e -> log client Log.Level.Error ("Write error: " ^ (TLS.error_message e));
+                              return_unit
+                | `Eof     -> return_unit
+                | `Ok _    -> handle_write client)
+            | Stop -> return_unit
 
         let rec handle_read client =
             lwt res = TLS.read client.tls in

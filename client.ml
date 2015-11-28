@@ -20,13 +20,13 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
             {
                 scylla     : Scylla.t;
 
-                nickname   : string;
-                username   : string;
+                mutable nickname   : string;
+                mutable username   : string;
+                mutable realname   : string;
+
                 hostname   : string;
 
-                realname   : string;
-
-                tls        : TLS.flow;
+                mutable tls : TLS.flow;
 
                 ip         : S.TCPV4.ipaddr;
                 port       : int;
@@ -55,9 +55,9 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
 
                 nickname = "*";
                 username = "*";
-                hostname = Ipaddr.V4.to_string ip;
-
                 realname = "";
+
+                hostname = Ipaddr.V4.to_string ip;
 
                 tls = tls;
 
@@ -113,13 +113,16 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
                         | "NICK" ->
                                 (match (Message.arguments m) with
                                 | nick :: [] ->
-                                       { t with nickname = nick }
+                                        t.nickname <- nick;
+                                        t
                                 | _ ->
                                         t)
                         | "USER" ->
                                 (match (Message.arguments m) with
                                 | user :: _ :: _ :: real :: [] ->
-                                        { t with username = "~" ^ user; realname = real }
+                                        t.username <- "~" ^ user;
+                                        t.realname <- real;
+                                        t
                                 | _ ->
                                         t)
                         | _ ->
@@ -154,6 +157,7 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
         let rec handle_write client =
             Lwt_mvar.take client.mailbox >>= function
                 | Message message ->
+                    log client Log.Level.Debug (">> " ^ message);
                     (lwt res = TLS.write client.tls (Cstruct.of_string (message ^ "\r\n")) in
                     match res with
                     | `Error e -> log client Log.Level.Error ("Write error: " ^ (TLS.error_message e));

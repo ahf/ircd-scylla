@@ -7,3 +7,4 @@
 val intersperse : 'a list -> 'a -> 'a list
 val split : string -> char -> string * string
 val prefix : string -> char -> bool
+val split_all : string -> char -> string list

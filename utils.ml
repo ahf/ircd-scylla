@@ -20,3 +20,13 @@ let prefix s c =
     match (String.length s) with
     | 0 -> false
     | _ -> (String.get s 0) == c
+
+let split_all s c =
+    let rec aux i acc =
+        match String.contains i c with
+        | true ->
+                let head, rest = split i c in
+                aux rest (head :: acc)
+        | false ->
+                List.rev (i :: acc) in
+    aux s []

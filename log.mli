@@ -4,8 +4,6 @@
  * license that can be found in the LICENSE file.
  *)
 
-open Sexplib.Std
-
 module Make (C : V1_LWT.CONSOLE) :
     sig
         module Level :
@@ -30,5 +28,5 @@ module Make (C : V1_LWT.CONSOLE) :
         type t
 
         val create : Level.t -> C.t -> t
-        val log : t -> Level.t -> string -> unit
+        val log : t -> Level.t -> ('a, unit, string, unit) format4 -> 'a
     end

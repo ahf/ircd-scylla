@@ -64,8 +64,7 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
             }
 
         let log t log_level s =
-            let message = Printf.sprintf "Client %s!%s@%s:%d: %s" t.nickname t.username t.hostname t.port s in
-            Scylla.log t.scylla log_level message
+            Scylla.log t.scylla log_level "Client %s!%s@%s:%d: %s" t.nickname t.username t.hostname t.port s
 
         let connected t =
             log t Log.Level.Info "Connected ..."

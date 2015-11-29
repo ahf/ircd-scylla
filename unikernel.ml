@@ -19,5 +19,6 @@ module Main (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
         let start console stack kv =
             let settings = Settings.create "scylla.0x90.dk" 6697 Log.Level.Debug in
             let scylla = Scylla.create console settings kv stack in
+            Scylla.log scylla Log.Level.Info "Starting Scylla";
             Listener.listen scylla
     end

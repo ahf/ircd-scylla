@@ -16,6 +16,7 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
         module Scylla   = Scylla.Make (C) (S) (KV)
         module Client   = Client.Make (C) (S) (KV)
         module Settings = Settings.Make (C)
+        module Log      = Log.Make (C)
 
         let accept scylla conf flow =
             TLS.server_of_flow conf flow >>= function
@@ -32,6 +33,7 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
             let port = Settings.port settings in
             lwt cert = X509.certificate kv `Default in
             let conf = Tls.Config.server ~certificates:(`Single cert) () in
+            Scylla.log scylla Log.Level.Info "Listening on port: %d" port;
             S.listen_tcpv4 stack port (accept scylla conf) ;
             S.listen stack
     end

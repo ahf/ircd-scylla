@@ -66,13 +66,15 @@ module Make (C : V1_LWT.CONSOLE) =
             console
         }
 
-        let log log level s =
-            let level_int = Level.to_integer level in
-            let min_level_int = Level.to_integer log.min_level in
-            if level_int >= min_level_int then
-                let t = Clock.gmtime (Clock.time ()) in
-                let timestamp = Printf.sprintf "%02d/%02d/%d %02d:%02d:%02d" t.tm_mday (t.tm_mon + 1) (t.tm_year + 1900) t.tm_hour t.tm_min t.tm_sec in
-                let info = Printf.sprintf "%s [%s] " timestamp (Level.to_string level) in
-                let message = Colour.format (Level.to_colour level) s in
-                C.log log.console (info ^ message)
+        let log log level fmt =
+            let f = fun s ->
+                        let level_int = Level.to_integer level in
+                        let min_level_int = Level.to_integer log.min_level in
+                        if level_int >= min_level_int then
+                            let t = Clock.gmtime (Clock.time ()) in
+                            let timestamp = Printf.sprintf "%02d/%02d/%d %02d:%02d:%02d" t.tm_mday (t.tm_mon + 1) (t.tm_year + 1900) t.tm_hour t.tm_min t.tm_sec in
+                            let colour = Level.to_colour level in
+                            let message = Printf.sprintf "%s [%s] %s" timestamp (Level.to_string level) (Colour.format colour s) in
+                            C.log log.console message in
+            Printf.ksprintf f fmt
     end

@@ -13,7 +13,7 @@ module Make (C : V1_LWT.CONSOLE) (S : V1_LWT.STACKV4) (KV : V1_LWT.KV_RO) :
 
         val create : C.t -> Settings.t -> KV.t -> S.t -> t
 
-        val log : t -> Log.Level.t -> string -> unit
+        val log : t -> Log.Level.t -> ('a, unit, string, unit) format4 -> 'a
 
         val kv : t -> KV.t
         val stack : t -> S.t

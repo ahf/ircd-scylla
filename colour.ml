@@ -4,14 +4,6 @@
  * license that can be found in the LICENSE file.
  *)
 
-type t =
-    | Red
-    | Green
-    | Yellow
-    | Cyan
-    | Purple
-    | Gray
-
 let format colour s =
     match colour with
     | Red    -> "\027[31m" ^ s ^ "\027[m"

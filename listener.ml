@@ -11,10 +11,11 @@ open V1_LWT
 
 module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
     struct
-        module TLS    = Tls_mirage.Make (S.TCPV4)
-        module X509   = Tls_mirage.X509 (KV) (Clock)
-        module Scylla = Scylla.Make (C) (S) (KV)
-        module Client = Client.Make (C) (S) (KV)
+        module TLS      = Tls_mirage.Make (S.TCPV4)
+        module X509     = Tls_mirage.X509 (KV) (Clock)
+        module Scylla   = Scylla.Make (C) (S) (KV)
+        module Client   = Client.Make (C) (S) (KV)
+        module Settings = Settings.Make (C)
 
         let accept scylla conf flow =
             TLS.server_of_flow conf flow >>= function
@@ -27,7 +28,8 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
         let listen scylla =
             let stack = Scylla.stack scylla in
             let kv = Scylla.kv scylla in
-            let port = Conf.port (Scylla.config scylla) in
+            let settings = Scylla.settings scylla in
+            let port = Settings.port settings in
             lwt cert = X509.certificate kv `Default in
             let conf = Tls.Config.server ~certificates:(`Single cert) () in
             S.listen_tcpv4 stack port (accept scylla conf) ;

@@ -11,8 +11,10 @@ open V1_LWT
 
 module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
     struct
-        module TLS    = Tls_mirage.Make (S.TCPV4)
-        module Scylla = Scylla.Make (C) (S) (KV)
+        module TLS      = Tls_mirage.Make (S.TCPV4)
+        module Scylla   = Scylla.Make (C) (S) (KV)
+        module Settings = Settings.Make (C)
+        module Log      = Log.Make (C)
 
         type write_command = Stop | Message of string
 
@@ -82,7 +84,8 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
             write_command t Stop
 
         let maybe_register_client t =
-            let server_name = Conf.name (Scylla.config t.scylla) in
+            let settings = Scylla.settings t.scylla in
+            let server_name = Settings.name settings in
             let username = t.username in
             let nickname = t.nickname in
             match (username, nickname) with
@@ -94,8 +97,9 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
                     { t with registered = true }
 
         let handle_registered_message t m =
+            let settings = Scylla.settings t.scylla in
+            let server_name = Settings.name settings in
             let command = Message.command m in
-            let server_name = Conf.name (Scylla.config t.scylla) in
             match command with
             | "PING" ->
                     (match (Message.arguments m) with

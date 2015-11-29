@@ -6,7 +6,7 @@
 
 module Make (C : V1_LWT.CONSOLE) :
     sig
-        module Log : module type of Log.Make(C)
+        module Log : module type of Log.Make (C)
 
         type t
 

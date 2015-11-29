@@ -6,8 +6,8 @@
 
 module Make (C : V1_LWT.CONSOLE) (S : V1_LWT.STACKV4) (KV : V1_LWT.KV_RO) :
     sig
-        module Settings : module type of Settings.Make(C)
-        module Log      : module type of Log.Make(C)
+        module Settings : module type of Settings.Make (C)
+        module Log      : module type of Log.Make (C)
 
         type t
 

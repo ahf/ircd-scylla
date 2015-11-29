@@ -40,16 +40,6 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
                 mailbox    : write_command Lwt_mvar.t;
             }
 
-        let log t log_level s =
-            let message = Printf.sprintf "Client %s!%s@%s:%d: %s" t.nickname t.username t.hostname t.port s in
-            Scylla.log t.scylla log_level message
-
-        let connected t =
-            log t Log.Level.Info "Connected ..."
-
-        let disconnected t =
-            log t Log.Level.Info "Disconnected ..."
-
         let create scylla ip port tls =
             let mailbox = Lwt_mvar.create_empty () in
             {
@@ -72,6 +62,16 @@ module Make (C : CONSOLE) (S : STACKV4) (KV : KV_RO) =
 
                 mailbox = mailbox;
             }
+
+        let log t log_level s =
+            let message = Printf.sprintf "Client %s!%s@%s:%d: %s" t.nickname t.username t.hostname t.port s in
+            Scylla.log t.scylla log_level message
+
+        let connected t =
+            log t Log.Level.Info "Connected ..."
+
+        let disconnected t =
+            log t Log.Level.Info "Disconnected ..."
 
         let write_command t cmd =
             let _ = Lwt_mvar.put t.mailbox cmd in
